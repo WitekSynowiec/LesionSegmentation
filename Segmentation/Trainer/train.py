@@ -1,9 +1,11 @@
+import json
+from collections import defaultdict
 from datetime import datetime, timedelta
 import os
 
 import torch
 from tqdm import tqdm
-from Segmentation.utils import get_loaders, save_state, check_accuracy, save_metadata
+from Segmentation.utils import get_loaders, save_state, calculate_metrics, append_metrics
 from time import time
 
 
@@ -121,6 +123,7 @@ def fit(
     output_data_path = os.path.join("results", current_date)
     training_losses = []
     validation_losses = []
+    metrics = defaultdict(list)
 
     for epoch in range(epochs):
         print("Epoch {} of {}".format(epoch+1, epochs))
@@ -143,13 +146,21 @@ def fit(
             }
             save_state(checkpoint, output_data_path, "epoch_" + str(epoch + 1) + ".pth")
 
-        check_accuracy(val_loader, model, device)
+        metrics = append_metrics(metrics, calculate_metrics(val_loader, model, device))
 
-    metadata.update({'training_losses': training_losses, 'validation_losses': validation_losses})
     metadata['model'] = metadata['model'].__repr__()
 
     for key in ['dataset', 'optimizer', 'loss_fn', 'scaler']:
         metadata[key] = str(metadata[key].__class__.__name__)
+
+    with open(os.path.join(output_data_path, 'metrics.json'), 'w') as fp:
+        json.dump(metrics, fp)
+
+    with open(os.path.join(output_data_path, 'losses.json'), 'w') as fp:
+        json.dump({'training_losses': training_losses, 'validation_losses': validation_losses}, fp)
+
+    with open(os.path.join(output_data_path, 'metadata.json'), 'w') as fp:
+        json.dump(metadata, fp)
 
     # save_metadata(metadata, output_data_path)
 

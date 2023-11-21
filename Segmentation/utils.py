@@ -5,7 +5,7 @@ import torch
 import torchvision
 from torch.utils.data import random_split, DataLoader
 from torchvision.transforms import Resize, InterpolationMode, Compose
-
+from Segmentation.metrics import BinaryMetrics
 from FilesHelpers.Nifti import Nifti
 from Segmentation.dataset import MSDataset
 from Segmentation.model import UNet
@@ -62,29 +62,32 @@ def load_state(checkpoint, model):
     model.load_state_dict(checkpoint["state_dict"])
 
 
-def check_accuracy(loader, model, device=torch.device("cuda")):
-    num_correct = 0
+def calculate_metrics(loader, model, device=torch.device("cuda")):
     num_pixels = 0
-    dice_score = 0
     model.eval()
+
+    metrics = BinaryMetrics()
+    metrics.set_device(device)
 
     with torch.no_grad():
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
             preds = torch.sigmoid(model(x))
-            preds = (preds > 0.5).float()
-            num_correct += (preds == y).sum()
+            metrics.update(preds, y)
             num_pixels += torch.numel(preds)
-            dice_score += (2 * (preds * y).sum()) / (
-                    (preds + y).sum() + 1e-8
-            )
 
-    print(
-        f"Got {num_correct}/{num_pixels} with acc {num_correct / num_pixels * 100:.2f}"
-    )
-    print(f"Dice score: {dice_score / len(loader)}")
     model.train()
+    return metrics()
+
+
+def append_metrics(to_append: dict, new_elements: dict):
+
+    for key, value in new_elements.items():
+        to_append[key].append(value.cpu().detach().numpy().tolist())
+
+    return to_append
+
 
 
 def save_predictions_as_imgs(
@@ -146,4 +149,4 @@ if __name__ == "__main__":
     )
     modelx = UNet(initial_in_channels=1, initial_out_channels=1).to(torch.device("cuda"))
 
-    check_accuracy(val_loader, modelx, device=torch.device("cuda"))
+    # check_accuracy(val_loader, modelx, device=torch.device("cuda"))
