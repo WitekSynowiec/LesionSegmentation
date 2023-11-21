@@ -9,3 +9,4 @@ nibabel
 albumentations
 tqdm
 torchviz
+torchmetrics>=1.2
