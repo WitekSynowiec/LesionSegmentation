@@ -78,6 +78,7 @@ def calculate_metrics(loader, model, device=torch.device("cuda")):
             num_pixels += torch.numel(preds)
 
     model.train()
+    metrics.print_metrics()
     return metrics()
 
 

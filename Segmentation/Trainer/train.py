@@ -127,6 +127,8 @@ def fit(
 
     for epoch in range(epochs):
         print("Epoch {} of {}".format(epoch+1, epochs))
+        print("Cuda memory allocated : {}%".format(torch.cuda.memory_allocated()/torch.cuda.max_memory_allocated()*100))
+        # print("Cuda summary: {}".format(torch.cuda.memory_summary()))
 
         # validation
         val_loss = validate(val_loader, model, loss_fn)
@@ -145,8 +147,9 @@ def fit(
                 "optimizer": optimizer.state_dict(),
             }
             save_state(checkpoint, output_data_path, "epoch_" + str(epoch + 1) + ".pth")
+        epoch_metrics = calculate_metrics(val_loader, model, device)
+        metrics = append_metrics(metrics, epoch_metrics)
 
-        metrics = append_metrics(metrics, calculate_metrics(val_loader, model, device))
 
     metadata['model'] = metadata['model'].__repr__()
 
