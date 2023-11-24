@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import json
 import torch
 import torchvision
 from torch.utils.data import random_split, DataLoader
@@ -61,6 +62,22 @@ def load_state(checkpoint, model):
     print("=> Loading state")
     model.load_state_dict(checkpoint["state_dict"])
 
+def save_metrics(metrics: dict, path: os.path):
+    for key, value in metrics:
+        with open(os.path.join(path, '{}.json'.format(key)), 'w') as fp:
+            json.dump(value, fp)
+def save_losses(training_losses, validation_losses, path: os.path):
+    with open(os.path.join(path, 'losses.json'), 'w') as fp:
+        json.dump({'training_losses': training_losses, 'validation_losses': validation_losses}, fp)
+
+def save_metadata(metadata: dict[str, any], path: os.path):
+    metadata['model'] = metadata['model'].__repr__()
+
+    for key in ['dataset', 'optimizer', 'loss_fn', 'scaler']:
+        metadata[key] = str(metadata[key].__class__.__name__)
+
+    with open(os.path.join(path, 'metadata.json'), 'w') as fp:
+        json.dump(metadata, fp)
 
 def calculate_metrics(loader, model, device=torch.device("cuda")):
     num_pixels = 0
@@ -108,11 +125,6 @@ def save_predictions_as_imgs(
 
     model.train()
 
-
-def save_metadata():
-    pass
-
-
 def segment_nii(model: torch.nn.Module or None, nii_file: Nifti, batch_size: int = 1):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     images = nii_file.get_data()[0]
@@ -130,6 +142,13 @@ def segment_nii(model: torch.nn.Module or None, nii_file: Nifti, batch_size: int
             masks_prediction = mask_prediction
 
     return masks_prediction
+
+
+class TrainOutOfMemoryException(Exception):
+    def __init__(self, last_epoch: int, output_path=os.path, message: str = ''):
+        super().__init__(message)
+        self.last_epoch = last_epoch
+        self.output_path = output_path
 
 
 if __name__ == "__main__":

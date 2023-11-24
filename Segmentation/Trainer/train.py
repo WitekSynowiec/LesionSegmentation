@@ -5,11 +5,11 @@ import os
 
 import torch
 from tqdm import tqdm
-from Segmentation.utils import get_loaders, save_state, calculate_metrics, append_metrics
+from Segmentation.utils import get_loaders, save_state, calculate_metrics, append_metrics, save_metrics, save_losses, save_metadata, TrainOutOfMemoryException
 from time import time
 
 
-def __forward(data, targets,  model, loss_fn):
+def __forward(data, targets, model, loss_fn):
     # forward
     with torch.cuda.amp.autocast():
         predictions = model(data)
@@ -37,19 +37,11 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
         data = data.to(device)
         targets = targets.to(device)
 
-
         # forward
         loss = __forward(data, targets, model, loss_fn)
-        # with torch.cuda.amp.autocast():
-        #     predictions = model(data)
-        #     loss = loss_fn(predictions, targets)
 
         # backward
         __backward(loss, optimizer, scaler)
-        # optimizer.zero_grad()
-        # scaler.scale(loss).backward()
-        # scaler.step(optimizer)
-        # scaler.update()
 
         # update tqdm loop
         loop.set_postfix(loss=loss.item())
@@ -57,10 +49,10 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
         # Increment loss accumulation
         loss_accumulated += loss.item()
 
-    return loss_accumulated/len(loader.dataset)
+    return loss_accumulated / len(loader.dataset)
 
 
-def validate(loader, model, loss_fn, device=torch.device("cuda") ):
+def validate(loader, model, loss_fn, device=torch.device("cuda")):
     model.eval()
     loss_accumulated = 0
     model.to(device)
@@ -71,7 +63,7 @@ def validate(loader, model, loss_fn, device=torch.device("cuda") ):
             loss = __forward(data, targets, model, loss_fn)
             loss_accumulated += loss.item()
     model.train()
-    return loss_accumulated/len(loader.dataset)
+    return loss_accumulated / len(loader.dataset)
 
 
 def fit(
@@ -120,59 +112,57 @@ def fit(
     print("Initiating training process...")
     start = time()
     current_date = datetime.now().strftime("%d-%m-%Y_%H-%M")
-    output_data_path = os.path.join("results", current_date)
     training_losses = []
     validation_losses = []
     metrics = defaultdict(list)
 
+    # saving training metadata
+    output_data_path = os.path.join("results", current_date)
+    save_metadata(metadata, output_data_path)
+
     for epoch in range(epochs):
-        print("Epoch {} of {}".format(epoch+1, epochs))
-        print("Cuda memory allocated : {}%".format(torch.cuda.memory_allocated()/torch.cuda.max_memory_allocated()*100))
-        # print("Cuda summary: {}".format(torch.cuda.memory_summary()))
+        try:
+            print("Epoch {} of {}".format(epoch + 1, epochs))
+            print("Cuda memory allocated : {}%".format(
+                torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated() * 100))
+            # print("Cuda summary: {}".format(torch.cuda.memory_summary()))
 
-        # validation
-        val_loss = validate(val_loader, model, loss_fn)
-        validation_losses.append(val_loss)
+            # validation
+            val_loss = validate(val_loader, model, loss_fn)
+            validation_losses.append(val_loss)
 
-        # train
-        loss = train_fn(train_loader, model, optimizer, loss_fn, scaler)
-        training_losses.append(loss)
+            # train
+            loss = train_fn(train_loader, model, optimizer, loss_fn, scaler)
+            training_losses.append(loss)
 
-        print("Mean loss equals {}".format(loss))
+            print("Mean loss equals {}".format(loss))
 
-        # save model
-        if epoch == epochs - 1 or save_all_states:
-            checkpoint = {
-                "state_dict": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-            }
-            save_state(checkpoint, output_data_path, "epoch_" + str(epoch + 1) + ".pth")
-        epoch_metrics = calculate_metrics(val_loader, model, device)
-        metrics = append_metrics(metrics, epoch_metrics)
+            # calculating metrics
+            epoch_metrics = calculate_metrics(val_loader, model, device)
+            metrics = append_metrics(metrics, epoch_metrics)
 
+            # save checkpoint
+            if epoch == epochs - 1 or save_all_states or (epoch + 1) % 10 == 0:
+                output_data_path = os.path.join("results", current_date, "epoch_" + str(epoch + 1))
+                print("Epoch {} saving checkpoint".format(epoch + 1))
+                print("Current duration of training [hh:mm:ss]: {}".format(timedelta(seconds=time() - start)))
+                checkpoint = {
+                    "state_dict": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                }
+                save_state(checkpoint, os.path.join(output_data_path), "epoch_" + str(epoch + 1) + ".pth")
 
-    metadata['model'] = metadata['model'].__repr__()
+                save_metrics(metrics, output_data_path)
 
-    for key in ['dataset', 'optimizer', 'loss_fn', 'scaler']:
-        metadata[key] = str(metadata[key].__class__.__name__)
+                save_losses(training_losses, validation_losses, output_data_path)
+        except torch.cuda.OutOfMemoryError as e:
+            print("Caught {} exception. Continuing from saved model".format(e))
+            epoch = (epoch + 1) % 10
+            torch.cuda.empty_cache()
+            model.load_state_dict(torch.load(os.path.join(output_data_path, "epoch_" + str(epoch + 1) + ".pth")))
 
-    with open(os.path.join(output_data_path, 'metrics.json'), 'w') as fp:
-        json.dump(metrics, fp)
+        print("")
 
-    with open(os.path.join(output_data_path, 'losses.json'), 'w') as fp:
-        json.dump({'training_losses': training_losses, 'validation_losses': validation_losses}, fp)
-
-    with open(os.path.join(output_data_path, 'metadata.json'), 'w') as fp:
-        json.dump(metadata, fp)
-
-    # save_metadata(metadata, output_data_path)
-
-    print("")
-    print("Duration of training [hh:mm:ss]: {}".format(timedelta(seconds=time() - start)))
     print("Training has been finished.")
     print("")
 
-    # print some examples to a folder
-    # save_predictions_as_imgs(
-    #     val_loader, model, folder=r'/mnt/c/Users/pegaz/Desktop/Praca-Magisterska/dataset/organized/results/', device=device
-    # )
