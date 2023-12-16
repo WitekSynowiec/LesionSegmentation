@@ -63,16 +63,19 @@ def load_state(checkpoint, model):
     model.load_state_dict(checkpoint["state_dict"])
 
 def save_metrics(metrics: dict, path: os.path):
-    for key, value in metrics:
+    print("=> Saving metrics")
+    for key, value in metrics.items():
         with open(os.path.join(path, '{}.json'.format(key)), 'w') as fp:
             json.dump(value, fp)
 def save_losses(training_losses, validation_losses, path: os.path):
+    print("=> Saving losses")
     with open(os.path.join(path, 'losses.json'), 'w') as fp:
         json.dump({'training_losses': training_losses, 'validation_losses': validation_losses}, fp)
 
 def save_metadata(metadata: dict[str, any], path: os.path):
+    print("=> Saving metadata")
+    os.makedirs(path, exist_ok=True)
     metadata['model'] = metadata['model'].__repr__()
-
     for key in ['dataset', 'optimizer', 'loss_fn', 'scaler']:
         metadata[key] = str(metadata[key].__class__.__name__)
 
@@ -95,7 +98,7 @@ def calculate_metrics(loader, model, device=torch.device("cuda")):
             num_pixels += torch.numel(preds)
 
     model.train()
-    metrics.print_metrics()
+    metrics.set_device(torch.device('cpu'))
     return metrics()
 
 

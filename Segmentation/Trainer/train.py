@@ -10,12 +10,10 @@ from time import time
 
 
 def __forward(data, targets, model, loss_fn):
+
     # forward
     with torch.cuda.amp.autocast():
         predictions = model(data)
-        # print(predictions.dtype)
-        # print(data.dtype)
-        # print(targets.dtype)
         loss = loss_fn(predictions, targets)
     return loss
 
@@ -120,7 +118,7 @@ def fit(
     output_data_path = os.path.join("results", current_date)
     save_metadata(metadata, output_data_path)
 
-    for epoch in range(epochs):
+    for epoch in range(initial_epoch, epochs):
         try:
             print("Epoch {} of {}".format(epoch + 1, epochs))
             print("Cuda memory allocated : {}%".format(
@@ -138,7 +136,9 @@ def fit(
             print("Mean loss equals {}".format(loss))
 
             # calculating metrics
+            print("Calculating metrics...")
             epoch_metrics = calculate_metrics(val_loader, model, device)
+            print("Appending metrics...")
             metrics = append_metrics(metrics, epoch_metrics)
 
             # save checkpoint
@@ -157,7 +157,7 @@ def fit(
                 save_losses(training_losses, validation_losses, output_data_path)
         except torch.cuda.OutOfMemoryError as e:
             print("Caught {} exception. Continuing from saved model".format(e))
-            epoch = (epoch + 1) % 10
+            epoch = epoch - (epoch + 1) % 10
             torch.cuda.empty_cache()
             model.load_state_dict(torch.load(os.path.join(output_data_path, "epoch_" + str(epoch + 1) + ".pth")))
 

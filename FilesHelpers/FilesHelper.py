@@ -183,5 +183,20 @@ def initiate_dataset():
     retrieve_slices()
 
 
+def get_classes_numel(directory):
+    mask_labels = sorted([mask for mask in os.listdir(directory) if mask.endswith(".npy")])
+
+    positives = 0
+    numels = 0
+    for mask_label in mask_labels:
+        print(mask_label)
+        mask = np.load(os.path.join(directory, mask_label))
+        positives += np.concatenate(mask).sum()
+        numels += np.size(mask)
+
+
+    return positives, numels-positives
+
 if __name__ == "__main__":
-    initiate_dataset()
+    # initiate_dataset()
+    print(get_classes_numel(ANNOTATIONS_PATH))
