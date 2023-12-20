@@ -63,7 +63,7 @@ def load_state(checkpoint, model):
     model.load_state_dict(checkpoint["state_dict"])
 
 def save_metrics(metrics: dict, path: os.path):
-    print("=> Saving metrics")
+    print("=> Saving classification_metrics")
     for key, value in metrics.items():
         with open(os.path.join(path, '{}.json'.format(key)), 'w') as fp:
             json.dump(value, fp)
@@ -86,9 +86,11 @@ def calculate_metrics(loader, model, device=torch.device("cuda")):
     num_pixels = 0
     model.eval()
 
+    print("3")
     metrics = BinaryMetrics()
+    print("4")
     metrics.set_device(device)
-
+    print("5")
     with torch.no_grad():
         for x, y in loader:
             x = x.to(device)
@@ -96,9 +98,11 @@ def calculate_metrics(loader, model, device=torch.device("cuda")):
             preds = torch.sigmoid(model(x))
             metrics.update(preds, y)
             num_pixels += torch.numel(preds)
-
+    print("12")
     model.train()
+    print("13")
     metrics.set_device(torch.device('cpu'))
+    print("14")
     return metrics()
 
 

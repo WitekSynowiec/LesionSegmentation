@@ -59,7 +59,7 @@ class BinaryMetrics:
         self.device = device
 
     """
-    Updates metrics by a new Tensor.
+    Updates classification_metrics by a new Tensor.
     """
 
     def update(self, prediction: Tensor, target: Tensor):
@@ -276,3 +276,9 @@ class BinaryMetrics:
                 "Recall": self.__aggregated_recall / self._c,
                 "Specificity": self.__aggregated_specificity / self._c,
             }
+
+if __name__ == "__main__":
+    target = torch.tensor([0, 0, 0, 0, 0, 0])
+    preds = torch.tensor([0, 0, 0, 0, 0, 0])
+    metric = metrics.BinaryPrecision()
+    print(metric(preds, target))
