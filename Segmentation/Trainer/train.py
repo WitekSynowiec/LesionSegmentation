@@ -134,11 +134,14 @@ def fit(
 
     if starting_date is not None:
         path =  os.path.join("results", current_date)
-        files = [f for f in os.listdir(path) if f.startswith("epoch_")]
-        initial_epoch = int(files[-1].replace("epoch_", ""))
-        output_data_path = os.path.join("results", current_date, files[-1])
+        files = [int(f.replace("epoch_", "")) for f in os.listdir(path) if f.startswith("epoch_")]
+        files.sort()
+        initial_epoch = int(files[-1])
+        print(files)
+        print(initial_epoch)
+        output_data_path = os.path.join("results", current_date, "epoch_"+str(files[-1]))
         print(output_data_path)
-        model.load_state_dict(torch.load(os.path.join(output_data_path, files[-1] + ".pth"))["state_dict"])
+        model.load_state_dict(torch.load(os.path.join(output_data_path, "epoch_"+str(files[-1]) + ".pth"))["state_dict"])
         print("Loading model trained on {}. Initializing from {}".format(current_date, files[-1]))
 
     training_losses = []
